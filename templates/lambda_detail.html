@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}{{fn.name}} · Lambda{% endblock %}{% block content %}
+<div class="crumb"><a href="/lambda">Lambda</a> / {{fn.name}}</div><div class="pagehead"><div><h1>{{fn.name}}</h1><p class="lead"><code>{{fn.arn}}</code></p></div><div class="actions"><a class="btn" href="/lambda">All functions</a></div></div>
+<div class="grid grid2">
+  <div class="panel"><div class="panel-head">Configuration</div><div class="panel-body"><div class="kv"><div class="k">Runtime</div><div class="v">{{fn.runtime}}</div></div><div class="kv"><div class="k">Handler</div><div class="v">{{fn.handler}}</div></div><div class="kv"><div class="k">Memory</div><div class="v">{{fn.memory_mb}} MB</div></div><div class="kv"><div class="k">Timeout</div><div class="v">{{fn.timeout_s}} s</div></div><div class="kv"><div class="k">Description</div><div class="v">{{fn.description or '—'}}</div></div><div class="kv"><div class="k">Created</div><div class="v">{{fn.created_at}}</div></div></div></div>
+  <div class="panel"><div class="panel-head">Test / invoke</div><div class="panel-body"><form method="post" action="/lambda/{{fn.id}}/invoke"><div class="field"><label>Event payload (JSON)</label><textarea class="textarea" name="payload">{ "key": "value" }</textarea></div><div class="form-footer"><button class="btn primary">Invoke</button></div></form></div></div>
+</div>
+{% if fn.code %}<div class="panel"><div class="panel-head">Code</div><div class="panel-body"><pre style="margin:0;white-space:pre-wrap;font-size:12px">{{fn.code}}</pre></div></div>{% endif %}
+{% if result %}
+<div class="panel"><div class="panel-head">Execution result <span class="sub">statusCode {{result.statusCode}}</span></div><div class="panel-body"><div class="notice success">Function returned successfully (simulated).</div><b class="small">Response</b><pre style="white-space:pre-wrap;font-size:12px;background:#f7f8f8;border:1px solid #e3e6e6;border-radius:4px;padding:12px">{{ result.response | tojson(indent=2) }}</pre><b class="small">Log output</b><pre style="white-space:pre-wrap;font-size:12px;background:#111820;color:#d8dee5;border-radius:4px;padding:12px">{% for line in result.log %}{{line}}
+{% endfor %}</pre></div></div>
+{% endif %}
+{% endblock %}

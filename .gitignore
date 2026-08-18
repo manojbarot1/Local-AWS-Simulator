@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+simulator.db
+*.db
+.DS_Store

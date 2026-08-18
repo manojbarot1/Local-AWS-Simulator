@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% block title %}Lab practices · Local AWS Simulator{% endblock %}{% block content %}
+<div class="crumb">Training / Lab practices</div>
+<div class="pagehead"><div><h1>Lab practices</h1><p class="lead">Hands-on AWS architecture exercises using the local simulator. Build resources yourself, then use the built-in checks to confirm your design.</p></div><div class="actions"><div class="sideinfo" style="min-width:210px"><div class="label">Overall progress</div><div class="stat" style="margin:6px 0 8px">{{done}} / {{total}}</div><div class="progress"><div style="width:{{ (done/total*100)|round }}%"></div></div></div></div></div>
+<div class="notice"><b>How the labs work</b><br>There is no hidden provisioning. You create the resources through the simulator exactly as you would practice in a cloud console. Each lab has an automatic completion check against your local state. Work top to bottom — categories are ordered as a learning path.</div>
+{% for g in groups %}
+<div class="panel-head" style="border:0;padding:26px 0 10px;font-size:18px">{{g.name}} <span class="sub" style="margin-left:12px">{{g.desc}}</span><span class="sub">{% if g.done==g.total %}<span class="badge green">✓ {{g.done}}/{{g.total}} complete</span>{% else %}<span class="badge">{{g.done}}/{{g.total}} complete</span>{% endif %}</span></div>
+<div class="grid grid3">
+{% for lab in g.labs %}
+<a href="/labs/{{lab.id}}" style="text-decoration:none;color:inherit"><div class="card" style="height:100%;position:relative{% if lab.complete %};border-color:#a8d5aa{% endif %}">
+  <div style="display:flex;justify-content:space-between;align-items:center"><span class="badge blue">LAB {{'%02d'|format(lab.id)}}</span>{% if lab.complete %}<span class="badge green">✓ Complete</span>{% else %}<span class="badge">Not started</span>{% endif %}</div>
+  <h2 style="font-size:18px;margin:15px 0 7px;color:#161e2d">{{lab.title}}</h2>
+  <p class="muted" style="line-height:1.45;min-height:52px">{{lab.goal}}</p>
+  <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><span class="badge">{{lab.level}}</span><span class="badge">{{lab.time}}</span><span class="badge">{{lab.focus}}</span></div>
+  <div style="margin-top:16px;color:#146dcc;font-size:13px;font-weight:700">Open lab →</div>
+</div></a>
+{% endfor %}
+</div>
+{% endfor %}
+{% endblock %}

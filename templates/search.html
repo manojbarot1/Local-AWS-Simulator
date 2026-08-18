@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block title %}Search · Local AWS Simulator{% endblock %}{% block content %}
+<div class="crumb">Console home / Search</div>
+<div class="pagehead"><div><h1>Search results</h1><p class="lead">{% if q %}{{total}} resource{{'' if total==1 else 's'}} matching “{{q}}” across all services.{% else %}Type a resource name or ID in the search bar above.{% endif %}</p></div></div>
+{% if q and not groups %}<div class="notice warn"><b>No matches.</b> Nothing in the simulator matches “{{q}}”. Try part of a name, an AWS-style ID (vpc-, subnet-, i-, sg-…), or an ARN fragment.</div>{% endif %}
+{% for g in groups %}
+<div class="panel"><div class="panel-head">{{g.label}} <span class="sub">{{g.matches|length}} match{{'' if g.matches|length==1 else 'es'}}</span></div><div class="table-wrap"><table class="table"><tr><th>Name</th><th>Identifier</th><th></th></tr>
+{% for item in g.matches %}<tr><td><b>{{item.name}}</b></td><td class="small"><code>{{item.id}}</code></td><td><a class="btn small" href="{{item.url}}">Open</a></td></tr>{% endfor %}
+</table></div></div>
+{% endfor %}
+{% endblock %}

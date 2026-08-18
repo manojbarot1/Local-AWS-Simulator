@@ -1,0 +1,43 @@
+{% extends "base.html" %}{% block content %}
+<div class="crumb">EC2 / Instances / Launch instance</div>
+<div class="pagehead"><div><h1>Launch an instance</h1><div class="lead">Configure a simulated EC2 instance. No real AWS resources are created.</div></div></div>
+{% if errors %}<div class="notice" style="border-left-color:#cf222e"><b>Review errors</b><ul>{% for e in errors %}<li>{{e}}</li>{% endfor %}</ul></div>{% endif %}
+<form method="post">
+<div class="panel card"><div class="panel-head">Name and tags</div><div class="panel-body">
+<div class="form-row"><div><label class="form-label">Name</label><input class="input" name="name" value="{{form.get('name','') if form else ''}}" required></div>
+<div><label class="form-label">Environment</label><select name="environment"><option>NonProduction</option><option>Production</option><option>Development</option><option>Test</option></select></div></div>
+</div></div>
+<div class="panel card"><div class="panel-head">Application and OS Images (AMI)</div><div class="panel-body">
+<div class="form-row"><div><label class="form-label">AMI</label><select class="input" name="ami_id" id="ami" required>
+{% for a in amis %}<option value="{{a.id}}">{{a.name}} — {{a.os}} — {{a.arch}} — {{a.id}}</option>{% endfor %}</select></div>
+<div><label class="form-label">Number of instances</label><input class="input" type="number" name="count" value="1" min="1" max="20"></div></div>
+<div class="muted small">Local AMI catalogue. The selected image is metadata only; no operating system image is downloaded or booted.</div>
+</div></div>
+<div class="panel card"><div class="panel-head">Instance type</div><div class="panel-body">
+<div class="form-row"><div><label class="form-label">Instance type</label><select class="input" name="instance_type" id="itype">
+{% for t in types %}<option value="{{t[0]}}">{{t[0]}} — {{t[1]}} vCPU — {{t[2]}} GiB — {{t[3]}}</option>{% endfor %}</select></div>
+<div><label class="form-label">Key pair</label><select class="input" name="key_name"><option value="">Proceed without a key pair</option><option>local-admin-key</option><option>local-linux-key</option><option>local-windows-key</option></select></div></div>
+</div></div>
+<div class="panel card"><div class="panel-head">Network settings</div><div class="panel-body">
+<div class="form-row"><div><label class="form-label">VPC</label><select class="input" name="vpc_id" id="vpcSelect"><option value="">Select a VPC</option>{% for v in vpcs %}<option value="{{v.id}}">{{v.name}} — {{v.cidr}} — {{v.vpc_id}}</option>{% endfor %}</select><div class="muted small">Create a VPC from <a href="/network">VPC networking</a> first if none exists.</div></div>
+<div><label class="form-label">Subnet</label><select class="input" name="subnet_id" id="subnetSelect"><option value="">Select a subnet</option>{% for s in subnets %}<option value="{{s.id}}" data-vpc="{{s.vpc_id}}">{{s.name}} — {{s.cidr}} — {{s.az}}</option>{% endfor %}</select></div></div>
+<div class="form-row"><div><label class="form-label">Security groups</label><select class="input" name="security_group_id" multiple size="4">{% for sg in sgs %}<option value="{{sg.id}}" data-vpc="{{sg.vpc_id}}">{{sg.name}} — {{sg.group_id}} — {{sg.vpc_name}}</option>{% endfor %}</select><div class="muted small">Use Ctrl/Cmd-click to select multiple security groups.</div></div><div><label class="form-label">Private IPv4</label><input class="input" placeholder="Auto-assigned by simulator" disabled></div></div>
+<label><input type="checkbox" name="public_ip"> Auto-assign public IPv4 address</label>
+</div></div>
+<div class="panel card"><div class="panel-head">Configure storage</div><div class="panel-body">
+<div class="form-row"><div><label class="form-label">Root volume size (GiB)</label><input class="input" type="number" name="root_size" value="30" min="8"></div>
+<div><label class="form-label">Volume type</label><select class="input" name="root_type"><option>gp3</option><option>gp2</option><option>io2</option><option>st1</option><option>sc1</option></select></div></div>
+<label><input type="checkbox" name="encrypted" checked> Encrypt this volume</label>
+</div></div>
+<div class="panel card"><div class="panel-head">Advanced details</div><div class="panel-body">
+<div class="form-row"><div><label class="form-label">IAM instance profile</label><input class="input" name="iam_profile" placeholder="Optional simulated role"></div>
+<div><label class="form-label">Tenancy</label><select class="input" name="tenancy"><option>default</option><option>dedicated</option><option>host</option></select></div></div>
+<div class="form-row"><div><label class="form-label">Metadata HTTP tokens</label><select class="input" name="metadata_http_tokens"><option value="required">Required</option><option value="optional">Optional</option></select></div>
+<div><label class="form-label">Placement group</label><input class="input" name="placement_group" placeholder="Optional"></div></div>
+<label><input type="checkbox" name="monitoring"> Enable detailed monitoring</label><br>
+<label><input type="checkbox" name="termination_protection"> Termination protection</label>
+<div style="margin-top:14px"><label class="form-label">User data</label><textarea class="input" name="user_data" rows="5" placeholder="#!/bin/bash&#10;echo Local AWS Simulator"></textarea></div>
+</div></div>
+<div class="panel" style="display:flex;justify-content:flex-end;gap:8px"><a class="btn" href="/compute">Cancel</a><button class="btn primary" type="submit">Launch instance</button></div>
+</form>
+<script>const vpc=document.getElementById('vpcSelect'),subnet=document.getElementById('subnetSelect');function filterNet(){const id=vpc.value;[...subnet.options].forEach(o=>{if(!o.value)return;o.disabled=!!id&&o.dataset.vpc!==id;o.hidden=o.disabled;});[...document.querySelectorAll('select[name="security_group_id"] option')].forEach(o=>{o.disabled=!!id&&o.dataset.vpc!==id;o.hidden=o.disabled;});if(subnet.selectedOptions[0]&&subnet.selectedOptions[0].disabled)subnet.value='';}vpc.addEventListener('change',filterNet);filterNet();</script>{% endblock %}

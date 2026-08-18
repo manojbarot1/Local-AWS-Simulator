@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block content %}
+<div class="crumb">Training / Lab practices / {{lab.category}} / LAB {{'%02d'|format(lab.id)}}</div>
+<div class="pagehead"><div><div style="display:flex;gap:8px;margin-bottom:8px"><span class="badge blue">LAB {{'%02d'|format(lab.id)}}</span><span class="badge">{{lab.level}}</span><span class="badge">{{lab.time}}</span><span class="badge">{{lab.focus}}</span></div><h1>{{lab.title}}</h1><p class="lead">{{lab.goal}}</p></div><div class="actions"><a class="btn" href="/labs">All labs</a></div></div>
+{% if complete %}<div class="notice success"><b>Lab completed ✓</b><br>The simulator found the required resources and relationships in your local environment.</div>{% else %}<div class="notice warn"><b>Lab not complete yet</b><br>Follow the steps below, then refresh this page. The completion check will run again against the simulator database.</div>{% endif %}
+<div class="grid grid2">
+<div class="panel"><div class="panel-head">Scenario</div><div class="panel-body"><h3 style="margin-top:0">Your mission</h3><p>Act as the AWS solution architect for this scenario. Build the requested environment using the simulator's graphical console. Do not create anything directly in SQLite.</p><h3>Tasks</h3><ol style="line-height:1.8">{% for step in lab.steps %}<li>{{step}}</li>{% endfor %}</ol></div></div>
+<div class="panel"><div class="panel-head">Architecture mindset</div><div class="panel-body"><div class="sideinfo"><h3>Before you build</h3><p class="muted">Think about account boundaries, network boundaries, security controls, availability zones, routing and least privilege before clicking Create.</p><h3>After you build</h3><p class="muted">Open <b>Architecture</b> and <b>Dashboard</b>. Verify that the resources you created form a coherent design rather than just a collection of objects.</p><h3>Completion</h3><p class="muted">Completion is automatically calculated from the local simulator state. You can revisit a lab at any time.</p></div></div></div>
+</div>
+<div class="panel"><div class="panel-head">Recommended workflow <span class="sub">Use the console navigation</span></div><div class="panel-body"><div class="grid grid3">
+<div class="choice"><div><b>1. Plan</b><div class="muted small">Identify the required AWS resources and relationships.</div></div></div>
+<div class="choice"><div><b>2. Build</b><div class="muted small">Create resources from the service consoles in the sidebar.</div></div></div>
+<div class="choice"><div><b>3. Review</b><div class="muted small">Use Architecture and Dashboard to inspect the result.</div></div></div>
+</div></div></div>
+<div class="form-footer"><a class="btn" href="/labs">Back to labs</a><a class="btn primary" href="{{lab.console}}">{{lab.console_label}}</a></div>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block title %}Organization - Local AWS Simulator{% endblock %}{% block content %}
+<div class="crumb">AWS Organizations / Organization</div>
+<div class="pagehead"><div><h1>Organization</h1><p class="lead">Create and configure the simulated AWS Organization that will contain your accounts and organizational units.</p></div></div>
+<div class="tabs"><a class="tab active" href="/organization">Organization details</a><a class="tab" href="/ous">Organizational units</a><a class="tab" href="/accounts">Accounts</a><a class="tab" href="/policies">Policies</a></div>
+{% if org %}<div class="notice success"><b>Organization configured.</b> {{org}} is using <b>{{region}}</b> as its primary training region.</div>{% endif %}
+<div class="grid grid2" style="grid-template-columns:minmax(0,2fr) minmax(300px,1fr)">
+<section class="panel"><div class="panel-head">Organization details</div><div class="panel-body">
+<form method="post">
+<div class="field"><label for="org_name">Organization name</label><input class="input" id="org_name" name="org_name" value="{{org}}" placeholder="Example Enterprise" required><span class="hint">Use a meaningful name for the enterprise organization you are modelling.</span></div>
+<div class="field"><label for="region">Primary region</label><select class="select" id="region" name="region">{% for r in ['eu-central-1','eu-west-1','eu-west-2','eu-north-1','us-east-1','us-east-2','us-west-2','ap-southeast-1'] %}<option value="{{r}}" {% if r==region %}selected{% endif %}>{{r}}</option>{% endfor %}</select><span class="hint">This is the default region used by the simulator for training scenarios. It does not create an AWS region.</span></div>
+<div class="notice"><b>What happens when you save?</b><br><span class="small">The simulator stores the organization metadata locally in SQLite. Nothing is sent to AWS.</span></div>
+<div class="form-footer"><button class="btn" type="reset">Cancel</button><button class="btn primary" type="submit">Save organization</button></div>
+</form></div></section>
+<aside class="sideinfo"><h3>Organization summary</h3><div class="kv"><div class="k">Status</div><div class="v"><span class="badge green">● Active</span></div></div><div class="kv"><div class="k">Organization</div><div class="v">{{org or 'Not configured'}}</div></div><div class="kv"><div class="k">Primary region</div><div class="v">{{region}}</div></div><div class="kv"><div class="k">Next step</div><div class="v"><a href="/ous">Create OUs →</a></div></div><div class="kv"><div class="k">Training mode</div><div class="v">Local only</div></div></aside>
+</div>
+{% endblock %}
