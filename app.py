@@ -84,17 +84,18 @@ def setup():
     init_db()
     seed_default_network()
     # AWS Query API (CLI / boto3) is unauthenticated, like every local emulator.
-    if request.path == "/aws" or aws_api.is_query_request(request):
+    if aws_api.is_aws_api_request(request):
         return
     if request.endpoint not in ("login", "static") and not logged_in():
         return redirect(url_for("login"))
 
 
-@app.route("/aws", methods=["GET", "POST"])
-def aws_query_api():
-    """AWS Query-protocol endpoint for the real `aws` CLI and boto3.
+@app.route("/aws", defaults={"api_path": ""}, methods=["GET", "POST", "PUT", "DELETE", "HEAD"])
+@app.route("/aws/<path:api_path>", methods=["GET", "POST", "PUT", "DELETE", "HEAD"])
+def aws_query_api(api_path):
+    """AWS-compatible endpoint for the real `aws` CLI and boto3.
 
-    Point tools at it with:
+    EC2 uses the Query protocol; S3 uses its REST/XML protocol. Point tools at it with:
         --endpoint-url http://localhost:8080/aws
     It shares the simulator's SQLite state with the web console.
     """

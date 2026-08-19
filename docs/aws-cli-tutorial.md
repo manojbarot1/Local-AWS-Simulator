@@ -194,7 +194,33 @@ inst = run["Instances"][0]
 print(inst["InstanceId"], inst["PrivateIpAddress"], inst["PrivateDnsName"])
 ```
 
-## 7. What the endpoint supports today
+## 7. S3 from the terminal
+
+S3 uses a REST/XML protocol rather than EC2's Query protocol, but it uses the
+same local endpoint and profile. Buckets and objects written here appear in the
+**S3** console immediately.
+
+```bash
+aws --profile local s3api create-bucket \
+    --bucket training-assets \
+    --create-bucket-configuration LocationConstraint=eu-central-1
+
+printf 'hello from the real AWS CLI\n' > welcome.txt
+aws --profile local s3 cp welcome.txt s3://training-assets/labs/welcome.txt
+aws --profile local s3 ls s3://training-assets/labs/
+aws --profile local s3 cp s3://training-assets/labs/welcome.txt -
+
+# `s3api` is supported too.
+aws --profile local s3api head-object --bucket training-assets --key labs/welcome.txt
+aws --profile local s3api delete-object --bucket training-assets --key labs/welcome.txt
+aws --profile local s3api delete-bucket --bucket training-assets
+```
+
+Objects are stored as bytes, so binary uploads and downloads preserve their
+content. Bucket deletion deliberately follows AWS behavior and fails until the
+bucket is empty.
+
+## 8. What the endpoint supports today
 
 | Area | Working commands |
 |---|---|
@@ -208,17 +234,18 @@ print(inst["InstanceId"], inst["PrivateIpAddress"], inst["PrivateDnsName"])
 | Elastic IPs | `describe-addresses`, `allocate-address` |
 | Images | `describe-images` |
 | AZs | `describe-availability-zones` |
+| S3 buckets | `s3api create-bucket`, `list-buckets`, `get-bucket-location`, `delete-bucket` |
+| S3 objects | `s3 cp` upload/download, `s3api put/get/head/delete-object`, `list-objects-v2` |
 
 Accepted as harmless no-ops (so wizards and scripts don't break):
 `create-tags`, `delete-tags`, `modify-instance-attribute`, `modify-vpc-attribute`,
 `modify-subnet-attribute`, `attach-internet-gateway`, `detach-internet-gateway`.
 
-Everything else returns a well-formed `InvalidAction` error. The S3, IAM,
-Lambda, DynamoDB and Secrets Manager consoles are web-only for now — their
-API protocols (REST/JSON) are different from EC2's Query protocol and are not
+Everything else returns a well-formed unsupported-operation error. IAM, Lambda,
+DynamoDB and Secrets Manager remain web-only — their AWS protocols are not
 implemented yet.
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 | Symptom | Cause / fix |
 |---|---|
@@ -229,9 +256,10 @@ implemented yet.
 | Command hits real AWS instead of the simulator | The endpoint wasn't applied. Verify with `aws configure list --profile local`, or pass `--endpoint-url http://localhost:8080/aws` explicitly. The `/aws` path suffix matters. |
 | Resource missing in the web console | You're looking at a stale page — refresh. Both front-ends read the same database. |
 
-## 9. How it works
+## 10. How it works
 
-`aws_api.py` implements the AWS *Query* protocol for EC2: the CLI POSTs
+`aws_api.py` implements the AWS *Query* protocol for EC2 and the S3 REST/XML
+protocol for object storage. For EC2, the CLI POSTs
 form-encoded `Action=…&Version=…` parameters, and the simulator answers with
 XML in the `http://ec2.amazonaws.com/doc/2016-11-15/` namespace — the same
 wire format real EC2 uses, which is why unmodified AWS tooling parses it.

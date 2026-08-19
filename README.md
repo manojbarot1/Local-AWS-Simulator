@@ -55,10 +55,11 @@ print(ec2.describe_vpcs()["Vpcs"])
 Supported EC2 actions today: `Describe/Create/Delete` for VPCs, subnets,
 security groups; `Run/Start/Stop/Terminate/DescribeInstances`; and
 `DescribeRouteTables/InternetGateways/NatGateways/Addresses/Images/AvailabilityZones`,
-plus `AllocateAddress`. The new services (S3/IAM/Lambda/DynamoDB/Secrets) are
-console-only for now. Anything you create in the CLI shows up in the web console
-and vice-versa. `boto3` is only needed to *drive* the CLI — the app itself needs
-only Flask.
+plus `AllocateAddress`. S3 now supports the real REST/XML operations used by
+`aws s3` and `aws s3api`: create/list/delete buckets and put/list/get/head/delete
+objects. IAM, Lambda, DynamoDB and Secrets remain console-only for now. Anything
+you create in the CLI shows up in the web console and vice-versa. `boto3` is only
+needed to *drive* the CLI — the app itself needs only Flask.
 
 ## Login
 - Username: `demo`

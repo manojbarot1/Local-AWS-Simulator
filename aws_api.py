@@ -24,10 +24,12 @@ exactly or the SDK parses an empty result, so the builders below are precise.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import uuid
 from datetime import datetime, timezone
 from xml.sax.saxutils import escape
+from urllib.parse import unquote
 
 from aws_fidelity import (
     aws_id,
@@ -43,6 +45,7 @@ from aws_fidelity import (
 )
 
 EC2_NS = "http://ec2.amazonaws.com/doc/2016-11-15/"
+S3_NS = "http://s3.amazonaws.com/doc/2006-03-01/"
 OWNER = DEFAULT_ACCOUNT_ID
 
 
@@ -98,6 +101,26 @@ def _error(code, message, status=400):
         f"<RequestID>{_req_id()}</RequestID></Response>"
     )
     return body, status
+
+
+def _s3_error(code, message, status=400, resource="/"):
+    """Return the REST/XML error shape that botocore expects from S3."""
+    return (
+        f'<Error xmlns="{S3_NS}"><Code>{escape(code)}</Code>'
+        f"<Message>{escape(message)}</Message><Resource>{escape(resource)}</Resource>"
+        f"<RequestId>{_req_id()}</RequestId></Error>",
+        status,
+        {"Content-Type": "application/xml; charset=utf-8"},
+    )
+
+
+def _s3_xml(root, inner):
+    return (
+        f'<?xml version="1.0" encoding="UTF-8"?><{root} xmlns="{S3_NS}">'
+        f"{inner}</{root}>",
+        200,
+        {"Content-Type": "application/xml; charset=utf-8"},
+    )
 
 
 def _form_tags(params):
@@ -539,6 +562,156 @@ def describe_availability_zones(c, params):
 
 
 # ---------------------------------------------------------------------------
+# S3 REST/XML API
+# ---------------------------------------------------------------------------
+
+def _s3_bucket(c, name):
+    return c.execute("SELECT * FROM s3_buckets WHERE name=?", (name,)).fetchone()
+
+
+def _s3_object_bytes(value):
+    """Normalise rows created by either the text UI or the binary CLI API."""
+    if value is None:
+        return b""
+    if isinstance(value, bytes):
+        return value
+    return str(value).encode("utf-8")
+
+
+def _s3_parts(request):
+    """Return the bucket and URL-decoded key below the /aws endpoint prefix."""
+    relative = request.path[len("/aws"):].lstrip("/")
+    parts = relative.split("/", 1) if relative else []
+    bucket = parts[0] if parts else ""
+    key = unquote(parts[1]) if len(parts) == 2 else ""
+    return bucket, key
+
+
+def _s3_list_buckets(c):
+    rows = c.execute("SELECT * FROM s3_buckets ORDER BY name").fetchall()
+    buckets = "".join(
+        "<Bucket>"
+        f"<Name>{escape(r['name'])}</Name>"
+        f"<CreationDate>{escape(r['created_at'].replace(' ', 'T'))}Z</CreationDate>"
+        "</Bucket>"
+        for r in rows
+    )
+    return _s3_xml(
+        "ListAllMyBucketsResult",
+        f"<Owner><ID>{OWNER}</ID><DisplayName>local</DisplayName></Owner><Buckets>{buckets}</Buckets>",
+    )
+
+
+def _s3_list_objects(c, bucket, prefix):
+    rows = c.execute(
+        "SELECT * FROM s3_objects WHERE bucket_id=? AND key LIKE ? ORDER BY key",
+        (bucket["id"], f"{prefix}%"),
+    ).fetchall()
+    contents = "".join(
+        "<Contents>"
+        f"<Key>{escape(r['key'])}</Key>"
+        f"<LastModified>{escape(r['created_at'].replace(' ', 'T'))}Z</LastModified>"
+        f"<ETag>\"{uuid.uuid5(uuid.NAMESPACE_URL, bucket['name'] + '/' + r['key']).hex}\"</ETag>"
+        f"<Size>{r['size_bytes']}</Size><StorageClass>{escape(r['storage_class'] or 'STANDARD')}</StorageClass>"
+        "</Contents>"
+        for r in rows
+    )
+    return _s3_xml(
+        "ListBucketResult",
+        f"<Name>{escape(bucket['name'])}</Name><Prefix>{escape(prefix)}</Prefix>"
+        f"<KeyCount>{len(rows)}</KeyCount><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated>{contents}",
+    )
+
+
+def handle_s3(request, db_path):
+    """Serve the minimal S3 REST contract used by `aws s3` and `aws s3api`.
+
+    This deliberately covers the storage-lab lifecycle, not every S3 feature:
+    list/create/delete buckets; list, put, get, head and delete objects; and
+    GetBucketLocation. All operations use the same tables as the web console.
+    """
+    c = _conn(db_path)
+    try:
+        bucket_name, key = _s3_parts(request)
+        if not bucket_name:
+            if request.method == "GET":
+                return _s3_list_buckets(c)
+            return _s3_error("MethodNotAllowed", "The specified method is not allowed against this resource.", 405)
+
+        bucket = _s3_bucket(c, bucket_name)
+        if request.method == "PUT" and not key and bucket is None:
+            # CreateBucketConfiguration is a tiny XML body in the S3 protocol.
+            # Extracting just LocationConstraint gives CLI-created buckets the
+            # correct region while intentionally avoiding a full XML dependency.
+            create_body = request.get_data(cache=True, as_text=True)
+            location = re.search(r"<LocationConstraint[^>]*>([^<]+)</LocationConstraint>", create_body)
+            region = (location.group(1) if location else None) or _region(c)
+            c.execute(
+                "INSERT INTO s3_buckets(name,region,versioning,public,encryption,created_at) VALUES(?,?,?,?,?,?)",
+                (bucket_name, region, 0, 0, "SSE-S3", datetime.now().isoformat(timespec="seconds")),
+            )
+            c.commit()
+            return "", 200, {"Location": f"/{bucket_name}"}
+        if bucket is None:
+            return _s3_error("NoSuchBucket", "The specified bucket does not exist", 404, f"/{bucket_name}")
+
+        if not key:
+            if request.method == "DELETE":
+                has_objects = c.execute("SELECT 1 FROM s3_objects WHERE bucket_id=? LIMIT 1", (bucket["id"],)).fetchone()
+                if has_objects:
+                    return _s3_error("BucketNotEmpty", "The bucket you tried to delete is not empty", 409, f"/{bucket_name}")
+                c.execute("DELETE FROM s3_buckets WHERE id=?", (bucket["id"],))
+                c.commit()
+                return "", 204, {}
+            if request.method == "HEAD":
+                return "", 200, {"x-amz-bucket-region": bucket["region"] or _region(c)}
+            if request.method == "GET" and "location" in request.args:
+                return _s3_xml("LocationConstraint", escape(bucket["region"] or _region(c)))
+            if request.method == "GET":
+                return _s3_list_objects(c, bucket, request.args.get("prefix", ""))
+            return _s3_error("MethodNotAllowed", "The specified method is not allowed against this resource.", 405)
+
+        row = c.execute("SELECT * FROM s3_objects WHERE bucket_id=? AND key=?", (bucket["id"], key)).fetchone()
+        if request.method == "PUT":
+            body = request.get_data(cache=False)
+            content_type = request.headers.get("Content-Type", "binary/octet-stream")
+            now = datetime.now().isoformat(timespec="seconds")
+            if row:
+                c.execute(
+                    "UPDATE s3_objects SET size_bytes=?, content_type=?, body=?, created_at=? WHERE id=?",
+                    (len(body), content_type, body, now, row["id"]),
+                )
+            else:
+                c.execute(
+                    "INSERT INTO s3_objects(bucket_id,key,size_bytes,content_type,storage_class,body,created_at) VALUES(?,?,?,?,?,?,?)",
+                    (bucket["id"], key, len(body), content_type, "STANDARD", body, now),
+                )
+            c.commit()
+            return "", 200, {"ETag": f'"{uuid.uuid5(uuid.NAMESPACE_URL, bucket_name + "/" + key).hex}"'}
+        if row is None:
+            return _s3_error("NoSuchKey", "The specified key does not exist.", 404, f"/{bucket_name}/{key}")
+        if request.method == "DELETE":
+            c.execute("DELETE FROM s3_objects WHERE id=?", (row["id"],))
+            c.commit()
+            return "", 204, {}
+        if request.method in {"GET", "HEAD"}:
+            # Return the real body even for HEAD: Werkzeug strips it from the
+            # response while keeping Content-Length, whereas returning b"" here
+            # makes it recompute the header as 0 and head-object reports no size.
+            body = _s3_object_bytes(row["body"])
+            return body, 200, {
+                "Content-Type": row["content_type"] or "binary/octet-stream",
+                "Content-Length": str(row["size_bytes"]),
+                "ETag": f'"{uuid.uuid5(uuid.NAMESPACE_URL, bucket_name + "/" + key).hex}"',
+            }
+        return _s3_error("MethodNotAllowed", "The specified method is not allowed against this resource.", 405)
+    except sqlite3.IntegrityError:
+        return _s3_error("BucketAlreadyExists", "The requested bucket name is not available.", 409)
+    finally:
+        c.close()
+
+
+# ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
 
@@ -582,8 +755,16 @@ def is_query_request(request):
     return bool(request.form.get("Action") or request.args.get("Action"))
 
 
+def is_aws_api_request(request):
+    """True for either EC2 Query calls or S3 REST calls below `/aws`."""
+    return request.path == "/aws" or request.path.startswith("/aws/")
+
+
 def handle(request, db_path):
     """Entry point wired into the Flask app. Returns (body, status, headers)."""
+    if not is_query_request(request):
+        return handle_s3(request, db_path)
+
     params = {}
     params.update(request.args.to_dict(flat=True))
     params.update(request.form.to_dict(flat=True))
