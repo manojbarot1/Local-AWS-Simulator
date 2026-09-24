@@ -1,33 +1,45 @@
-{% extends "base.html" %}{% block content %}
-<div class="crumb">EC2 / Instances / {{instance.instance_id}}</div>
-<div class="pagehead"><div><h1>{{instance.name}}</h1><div class="lead">{{instance.instance_id}}</div></div>
+{% extends "base.html" %}{% block title %}{{instance.name or instance.instance_id}} · EC2{% endblock %}{% block content %}
+<div class="crumb"><a href="/compute">EC2 / Instances</a> / {{instance.instance_id}}</div>
+<div class="pagehead"><div><h1>{{instance.name or instance.instance_id}}</h1><div class="lead">{{instance.instance_id}}</div></div>
 <div class="actions">
 {% if instance.state=='terminated' %}
-<form method="post" action="/compute/instance/{{instance.instance_id}}/delete" onsubmit="return confirm('Remove this terminated instance from the simulator?')"><button class="btn danger">Delete instance</button></form>
+<form method="post" action="/compute/instance/{{instance.instance_id}}/delete" onsubmit="return confirm('Remove this terminated instance from the simulator?')"><button class="btn danger">Remove instance</button></form>
 {% else %}
-<form method="post" action="/compute/instance/{{instance.instance_id}}/action"><button class="btn" name="action" value="start" {% if instance.state=='running' %}disabled{% endif %}>Start</button></form>
-<form method="post" action="/compute/instance/{{instance.instance_id}}/action"><button class="btn" name="action" value="stop" {% if instance.state=='stopped' %}disabled{% endif %}>Stop</button></form>
+<form method="post" action="/compute/instance/{{instance.instance_id}}/action"><button class="btn" name="action" value="start" {% if instance.state!='stopped' %}disabled{% endif %}>Start</button></form>
+<form method="post" action="/compute/instance/{{instance.instance_id}}/action"><button class="btn" name="action" value="stop" {% if instance.state!='running' %}disabled{% endif %}>Stop</button></form>
 <form method="post" action="/compute/instance/{{instance.instance_id}}/action"><button class="btn" name="action" value="reboot" {% if instance.state!='running' %}disabled{% endif %}>Reboot</button></form>
 <form method="post" action="/compute/instance/{{instance.instance_id}}/action"><button class="btn danger" name="action" value="terminate">Terminate</button></form>
 {% endif %}
 </div></div>
-<div class="grid">
-<div class="card cardpad"><div class="label">Instance state</div><div class="stat {{'ok' if instance.state=='running' else 'bad' if instance.state=='terminated' else ''}}">● {{instance.state|capitalize}}</div></div>
+<div class="grid grid4">
+<div class="card cardpad"><div class="label">Instance state</div><div class="stat {{'ok' if instance.state=='running' else 'bad' if instance.state=='terminated' else ''}}" id="state">{% if instance.target_state %}<span class="spin"></span>{% else %}●{% endif %} {{instance.state|capitalize}}</div>{% if instance.target_state %}<div class="muted small">→ {{instance.target_state}} in a few seconds</div>{% endif %}</div>
 <div class="card cardpad"><div class="label">Instance type</div><div class="stat">{{instance.instance_type}}</div><div class="muted">{{instance.config.instance_type.vcpus}} vCPU · {{instance.config.instance_type.memory_gib}} GiB</div></div>
-<div class="card cardpad"><div class="label">Platform</div><div class="stat">{{instance.os}}</div><div class="muted">{{instance.architecture}}</div></div>
-<div class="card cardpad"><div class="label">Private IPv4</div><div class="stat">{{instance.private_ip}}</div><div class="muted">{{instance.vpc or 'No VPC specified'}}</div></div>
+<div class="card cardpad"><div class="label">Platform</div><div class="stat">{{instance.os}}</div><div class="muted">{{instance.architecture}} · {{instance.config.ami.name if instance.config.ami else instance.ami_id}}</div></div>
+<div class="card cardpad"><div class="label">Private IPv4</div><div class="stat">{{instance.private_ip}}</div><div class="muted">Public: {{instance.public_ip or 'none'}}{% if instance.eip %} (Elastic IP){% endif %}</div></div>
 </div>
-<div class="grid" style="grid-template-columns:1fr 1fr">
-<div class="panel card"><div class="panel-head">Details</div><div class="panel-body"><table class="table">
-<tr><th>AMI</th><td>{{instance.ami_id}}</td></tr><tr><th>Subnet</th><td>{{instance.subnet or '—'}}</td></tr>
-<tr><th>Security groups</th><td>{{instance.security_groups or '—'}}</td></tr><tr><th>Key pair</th><td>{{instance.key_name or '—'}}</td></tr>
-<tr><th>Public IPv4</th><td>{{instance.public_ip or '—'}}</td></tr><tr><th>Created</th><td>{{instance.created_at}}</td></tr>
-<tr><th>Termination protection</th><td style="display:flex;align-items:center;gap:10px">{% if instance.config.termination_protection %}<span class="badge green">Enabled</span>{% else %}<span class="badge">Disabled</span>{% endif %}{% if instance.state!='terminated' %}<form method="post" action="/compute/instance/{{instance.instance_id}}/action"><button class="btn small link" name="action" value="toggle_protection">{{'Disable' if instance.config.termination_protection else 'Enable'}}</button></form>{% endif %}</td></tr>
+<div class="grid grid2" style="margin-top:18px">
+<div class="panel"><div class="panel-head">Networking <span class="sub"><a href="/network/reachability?source={{instance.instance_id}}&destination=internet&protocol=tcp&port=443">Can it reach the internet? →</a></span></div><div class="panel-body tight"><table class="table">
+<tr><th>VPC</th><td>{{instance.vpc or '—'}}</td></tr>
+<tr><th>Subnet</th><td>{{instance.subnet or '—'}} {% if instance.subnet_name %}({{instance.subnet_name}}){% endif %} {% if instance.subnet_public %}<span class="badge green">Public subnet</span>{% elif instance.subnet_public is not none %}<span class="badge amber">Private subnet</span>{% endif %}</td></tr>
+<tr><th>Availability Zone</th><td>{{instance.config.network.availability_zone or '—'}}</td></tr>
+<tr><th>Private DNS</th><td class="small">{{instance.config.network.private_dns or '—'}}</td></tr>
+<tr><th>Public DNS</th><td class="small">{{instance.config.network.public_dns if instance.public_ip else '—'}}</td></tr>
+<tr><th>Security groups</th><td>{% for g in instance.sg_rows %}<div><b>{{g.name}}</b> <code class="small">{{g.group_id}}</code></div>{% else %}—{% endfor %}</td></tr>
 </table></div></div>
-<div class="panel card"><div class="panel-head">Storage</div><div class="panel-body"><table class="table">
+<div class="panel"><div class="panel-head">Details</div><div class="panel-body tight"><table class="table">
+<tr><th>AMI</th><td>{{instance.ami_id}}</td></tr>
+<tr><th>Key pair</th><td>{{instance.key_name or '—'}}</td></tr>
+<tr><th>Launched</th><td>{{instance.created_at}} <span class="badge">{{'CLI' if instance.config.source=='cli' else 'Console'}}</span></td></tr>
+<tr><th>IMDS</th><td>IMDSv2 {{'required' if instance.config.metadata_http_tokens=='required' else 'optional'}}</td></tr>
+<tr><th>Termination protection</th><td style="display:flex;align-items:center;gap:10px">{% if instance.config.termination_protection %}<span class="badge green">Enabled</span>{% else %}<span class="badge">Disabled</span>{% endif %}{% if instance.state!='terminated' %}<form method="post" action="/compute/instance/{{instance.instance_id}}/action"><button class="btn small link" name="action" value="toggle_protection">{{'Disable' if instance.config.termination_protection else 'Enable'}}</button></form>{% endif %}</td></tr>
+</table></div></div></div>
+<div class="grid grid2">
+<div class="panel"><div class="panel-head">Storage</div><div class="panel-body tight"><table class="table">
 <tr><th>Device</th><th>Type</th><th>Size</th><th>Encrypted</th></tr>
 {% for v in instance.config.volumes %}<tr><td>{{v.device}}</td><td>{{v.type}}</td><td>{{v.size_gib}} GiB</td><td>{{'Yes' if v.encrypted else 'No'}}</td></tr>{% endfor %}
-</table></div></div></div>
-<div class="panel card"><div class="panel-head">Tags</div><div class="panel-body">{% for k,v in instance.tags.items() %}<span class="pill" style="display:inline-block;margin:3px">{{k}}={{v}}</span>{% endfor %}</div></div>
-<div class="notice small"><b>Simulation notice:</b> this resource exists only in the Local AWS Simulator database. No VM, disk, network interface, IP address or AWS resource is actually provisioned.</div>
+</table></div></div>
+<div class="panel"><div class="panel-head">Tags</div><div class="panel-body">{% for k,v in instance.tags.items() %}<span class="pill">{{k}} = {{v}}</span>{% else %}<span class="muted">No tags.</span>{% endfor %}</div></div>
+</div>
+<div class="notice small"><b>Simulation notice:</b> this resource exists only in the Local AWS Simulator database. Stopping it releases its auto-assigned public IP and starting it gets a new one — exactly like EC2.</div>
+{% if instance.target_state %}<script>setTimeout(function(){location.reload()},2500)</script>{% endif %}
 {% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block title %}Reachability Analyzer · Local AWS Simulator{% endblock %}{% block content %}
+<div class="crumb">Networking / Reachability Analyzer</div>
+<div class="pagehead"><div><h1>Reachability Analyzer</h1><p class="lead">Trace a path hop by hop — instance state, security groups, network ACLs (both directions), the subnet's route table and the gateway it points at — and see exactly where traffic stops.</p></div><div class="actions"><a class="btn" href="/network">VPC console</a></div></div>
+<div class="panel"><div class="panel-head">Analyze a path</div><div class="panel-body">
+{% if not instances %}<div class="notice warn">Launch an instance first — the analyzer traces paths from EC2 instances.</div>{% endif %}
+<form method="get"><div class="grid" style="grid-template-columns:2fr 2fr 1fr 1fr auto;align-items:end">
+<div class="field" style="margin:0"><label>Source</label><select class="select" name="source" required>{% for i in instances %}<option value="{{i.instance_id}}" {% if args.get('source')==i.instance_id %}selected{% endif %}>{{i.name or i.instance_id}} — {{i.private_ip}} ({{i.state}})</option>{% endfor %}</select></div>
+<div class="field" style="margin:0"><label>Destination</label><select class="select" name="destination"><option value="internet" {% if args.get('destination','internet')=='internet' %}selected{% endif %}>The internet (outbound)</option><option value="from-internet" {% if args.get('destination')=='from-internet' %}selected{% endif %}>From the internet (inbound to source)</option>{% for i in instances %}<option value="{{i.instance_id}}" {% if args.get('destination')==i.instance_id %}selected{% endif %}>Instance {{i.name or i.instance_id}} — {{i.private_ip}}</option>{% endfor %}</select></div>
+<div class="field" style="margin:0"><label>Protocol</label><select class="select" name="protocol">{% for p in ['tcp','udp','icmp'] %}<option {% if args.get('protocol','tcp')==p %}selected{% endif %}>{{p}}</option>{% endfor %}</select></div>
+<div class="field" style="margin:0"><label>Port</label><input class="input" name="port" type="number" min="0" max="65535" value="{{args.get('port','443')}}"></div>
+<button class="btn primary" {% if not instances %}disabled{% endif %}>Analyze path</button>
+</div></form>
+<div class="small muted" style="margin-top:10px">Try: <code>tcp 443</code> to the internet from a private instance (needs a NAT gateway), <code>tcp 22</code> from the internet (needs a public IP, an IGW route and an inbound rule), or <code>tcp 5432</code> between an app and a database instance.</div>
+</div></div>
+{% if error %}<div class="notice err" style="background:#fdf3f1;border-left-color:#c40000">⚠ {{error}}</div>{% endif %}
+{% if result %}
+<div class="panel"><div class="panel-head">{{result.title}} <span class="sub">{% if result.reachable %}<span class="badge green">Reachable</span>{% else %}<span class="badge" style="color:#c40000;border-color:#e3b0b0">Not reachable</span>{% endif %}</span></div>
+<div class="panel-body tight">
+<div class="notice {{'success' if result.reachable else 'warn'}}" style="margin:14px 16px">{{result.summary}}</div>
+{% for h in result.hops %}<div class="hop {{'ok' if h.ok else 'bad'}}"><span class="dot">{{'✓' if h.ok else '✕'}}</span><div><b>{{h.component}}</b>{% if h.id %} <code class="small">{{h.id}}</code>{% endif %}<div class="small" style="margin-top:3px">{{h.detail}}</div></div></div>{% endfor %}
+</div></div>
+<div class="notice small"><b>How it decides:</b> security groups are stateful (replies are allowed automatically); network ACLs are stateless, so the reply on ports 1024-65535 is checked too. The route table is the subnet's explicit association, or the VPC's main table. An internet gateway only works for instances with a public IP; private subnets reach the internet through a NAT gateway that itself sits in a public subnet.</div>
+{% endif %}
+{% endblock %}

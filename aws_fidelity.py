@@ -222,11 +222,8 @@ def public_dns_name(public_ip: str, region: str) -> str:
 
 
 def random_public_ip() -> str:
-    """A plausible public IPv4 for an EC2 instance / EIP.
-
-    Uses the TEST-NET ranges reserved for documentation so it can never collide
-    with a real routable address, while still looking like a public IP.
-    """
+    """A plausible public IPv4 for an EC2 instance / EIP, drawn from first
+    octets AWS really uses. It is only ever displayed — nothing routes to it."""
     block = secrets.choice(["52", "54", "3", "18", "34"])
     return f"{block}.{secrets.randbelow(256)}.{secrets.randbelow(256)}.{secrets.randbelow(254) + 1}"
 
@@ -236,6 +233,8 @@ def random_public_ip() -> str:
 # ---------------------------------------------------------------------------
 
 DEFAULT_VPC_CIDR = "172.31.0.0/16"
+# One /20 default subnet per availability zone, in AZ order.
+DEFAULT_SUBNET_CIDRS = [f"172.31.{i * 16}.0/20" for i in range(6)]
 
 # The permissive default security group AWS creates in every VPC: it allows all
 # traffic from itself inbound and all traffic outbound.
@@ -248,3 +247,27 @@ DEFAULT_NACL_RULES = [
     "100 ALLOW ALL 0.0.0.0/0 egress",
     "* DENY ALL 0.0.0.0/0",
 ]
+
+
+# ---------------------------------------------------------------------------
+# CIDR validation (the rules CreateVpc / CreateSubnet enforce)
+# ---------------------------------------------------------------------------
+
+def validate_block(cidr: str, kind: str = "vpc") -> ipaddress.IPv4Network:
+    """Return the network for a VPC/subnet CIDR or raise ``SimError``.
+
+    AWS accepts IPv4 blocks between /16 and /28 and rejects host bits
+    (``10.0.0.5/16``) and anything that is not an IPv4 network.
+    """
+    from errors import SimError
+
+    text = (cidr or "").strip()
+    try:
+        net = ipaddress.IPv4Network(text, strict=True)
+    except (ValueError, ipaddress.AddressValueError):
+        raise SimError("InvalidParameterValue", f"Value ({text}) for parameter cidrBlock is invalid. "
+                       "This is not a valid CIDR block.")
+    if "/" not in text or not 16 <= net.prefixlen <= 28:
+        code = "InvalidVpc.Range" if kind == "vpc" else "InvalidSubnet.Range"
+        raise SimError(code, f"The CIDR '{text}' is invalid. The block size must be between /16 and /28.")
+    return net
