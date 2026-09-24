@@ -1,0 +1,4 @@
+{% extends "base.html" %}{% block title %}Not found · Local AWS Simulator{% endblock %}{% block content %}
+<div class="pagehead"><div><h1>{{what}} not found</h1><p class="lead">No {{what|lower}} with identifier <code>{{ident}}</code> exists in the simulator. It may have been deleted or the environment reset.</p></div></div>
+<div class="form-footer" style="justify-content:flex-start;border:0"><a class="btn primary" href="/dashboard">Dashboard</a><a class="btn" href="javascript:history.back()">Go back</a></div>
+{% endblock %}

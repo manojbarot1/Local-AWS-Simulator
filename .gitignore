@@ -2,6 +2,10 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+.pytest_cache/
 simulator.db
 *.db
+*.db-wal
+*.db-shm
+.secret_key
 .DS_Store

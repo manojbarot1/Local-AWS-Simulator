@@ -1,13 +1,13 @@
 {% extends "base.html" %}{% block title %}EC2 Instances · Local AWS Simulator{% endblock %}{% block content %}
 <div class="crumb">EC2 / Instances</div>
-<div class="pagehead"><div><h1>Instances</h1><p class="lead">Simulated EC2 instances. The simulator stores resource state locally and does not provision a VM.</p></div><div class="actions"><a class="btn primary" href="/compute/launch">Launch instance</a></div></div>
-<div class="panel"><div class="panel-head"><span>Instances ({{instances|length}})</span><span style="margin-left:auto" class="muted small">Local simulation • no VM is created</span></div>
+<div class="pagehead"><div><h1>Instances</h1><p class="lead">Simulated EC2 instances with the real lifecycle: <code>pending → running</code>, <code>stopping → stopped</code>, <code>shutting-down → terminated</code>. No VM is provisioned.</p></div><div class="actions"><a class="btn" href="/network/reachability">Reachability Analyzer</a><a class="btn primary" href="/compute/launch">Launch instance</a></div></div>
+<div class="panel"><div class="panel-head"><span>Instances ({{instances|length}})</span>{% if transitioning %}<span class="sub"><span class="spin"></span> state changes in progress — refreshing</span>{% else %}<span class="sub">Local simulation • no VM is created</span>{% endif %}</div>
 <div class="panel-body" style="padding:0"><div class="table-wrap"><table class="table">
-<tr><th>Name</th><th>Instance ID</th><th>State</th><th>Type</th><th>OS</th><th>Private IPv4</th><th>Actions</th></tr>
+<tr><th>Name</th><th>Instance ID</th><th>State</th><th>Type</th><th>OS</th><th>Private IPv4</th><th>Public IPv4</th><th>Actions</th></tr>
 {% for i in instances %}
-<tr><td><a href="/compute/instance/{{i.instance_id}}"><b>{{i.name}}</b></a></td><td class="small">{{i.instance_id}}</td>
-<td class="{{'ok' if i.state=='running' else 'bad' if i.state=='terminated' else ''}}">● {{i.state|capitalize}}</td>
-<td>{{i.instance_type}}</td><td>{{i.os}}</td><td>{{i.private_ip}}</td>
+<tr><td><a href="/compute/instance/{{i.instance_id}}"><b>{{i.name or '—'}}</b></a></td><td class="small">{{i.instance_id}}</td>
+<td class="{{'ok' if i.state=='running' else 'bad' if i.state=='terminated' else ''}}">{% if i.target_state %}<span class="spin"></span>{% else %}●{% endif %} {{i.state|capitalize}}</td>
+<td>{{i.instance_type}}</td><td>{{i.os}}</td><td>{{i.private_ip}}</td><td>{{i.public_ip or '—'}}</td>
 <td><div style="display:flex;gap:6px">
 {% if i.state=='running' %}
 <form method="post" action="/compute/instance/{{i.instance_id}}/action"><button class="btn small" name="action" value="stop">Stop</button></form>
@@ -16,9 +16,10 @@
 <form method="post" action="/compute/instance/{{i.instance_id}}/action"><button class="btn small" name="action" value="start">Start</button></form>
 <form method="post" action="/compute/instance/{{i.instance_id}}/action"><button class="btn small danger" name="action" value="terminate">Terminate</button></form>
 {% elif i.state=='terminated' %}
-<form method="post" action="/compute/instance/{{i.instance_id}}/delete" onsubmit="return confirm('Remove {{i.instance_id}} from the list?')"><button class="btn small danger">Delete</button></form>
+<form method="post" action="/compute/instance/{{i.instance_id}}/delete" onsubmit="return confirm('Remove {{i.instance_id}} from the list?')"><button class="btn small danger">Remove</button></form>
 {% endif %}
 </div></td></tr>
-{% else %}<tr><td colspan="7" class="muted">No instances. Launch your first simulated EC2 instance.</td></tr>{% endfor %}
+{% else %}<tr><td colspan="8" class="muted">No instances. Launch your first simulated EC2 instance.</td></tr>{% endfor %}
 </table></div></div></div>
+{% if transitioning %}<script>setTimeout(function(){location.reload()},2500)</script>{% endif %}
 {% endblock %}

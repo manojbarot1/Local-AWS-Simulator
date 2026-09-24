@@ -1,31 +1,31 @@
 {% extends "base.html" %}{% block content %}
 <div class="crumb">EC2 / Instances / Launch instance</div>
 <div class="pagehead"><div><h1>Launch an instance</h1><div class="lead">Configure a simulated EC2 instance. No real AWS resources are created.</div></div></div>
-{% if errors %}<div class="notice" style="border-left-color:#cf222e"><b>Review errors</b><ul>{% for e in errors %}<li>{{e}}</li>{% endfor %}</ul></div>{% endif %}
+{% if errors %}<div class="notice err" style="border-left-color:#c40000;background:#fdf3f1"><b>Launch failed</b><ul>{% for e in errors %}<li>{{e}}</li>{% endfor %}</ul></div>{% endif %}
 <form method="post">
 <div class="panel card"><div class="panel-head">Name and tags</div><div class="panel-body">
-<div class="form-row"><div><label class="form-label">Name</label><input class="input" name="name" value="{{form.get('name','') if form else ''}}" required></div>
+<div class="form-row"><div><label class="form-label">Name</label><input class="input" name="name" value="{{form.get('name','')}}" required></div>
 <div><label class="form-label">Environment</label><select name="environment"><option>NonProduction</option><option>Production</option><option>Development</option><option>Test</option></select></div></div>
 </div></div>
 <div class="panel card"><div class="panel-head">Application and OS Images (AMI)</div><div class="panel-body">
 <div class="form-row"><div><label class="form-label">AMI</label><select class="input" name="ami_id" id="ami" required>
-{% for a in amis %}<option value="{{a.id}}">{{a.name}} — {{a.os}} — {{a.arch}} — {{a.id}}</option>{% endfor %}</select></div>
+{% for a in amis %}<option value="{{a.id}}" {% if form.get('ami_id')==a.id %}selected{% endif %}>{{a.name}} — {{a.os}} — {{a.arch}} — {{a.id}}</option>{% endfor %}</select></div>
 <div><label class="form-label">Number of instances</label><input class="input" type="number" name="count" value="1" min="1" max="20"></div></div>
 <div class="muted small">Local AMI catalogue. The selected image is metadata only; no operating system image is downloaded or booted.</div>
 </div></div>
 <div class="panel card"><div class="panel-head">Instance type</div><div class="panel-body">
 <div class="form-row"><div><label class="form-label">Instance type</label><select class="input" name="instance_type" id="itype">
-{% for t in types %}<option value="{{t[0]}}">{{t[0]}} — {{t[1]}} vCPU — {{t[2]}} GiB — {{t[3]}}</option>{% endfor %}</select></div>
-<div><label class="form-label">Key pair</label><select class="input" name="key_name"><option value="">Proceed without a key pair</option><option>local-admin-key</option><option>local-linux-key</option><option>local-windows-key</option></select></div></div>
+{% for t in types %}<option value="{{t[0]}}" {% if form.get('instance_type', 't3.micro')==t[0] %}selected{% endif %}>{{t[0]}} — {{t[1]}} vCPU — {{t[2]}} GiB — {{t[3]}}</option>{% endfor %}</select></div>
+<div><label class="form-label">Key pair</label><select class="input" name="key_name"><option value="">Proceed without a key pair</option><option>local-admin-key</option><option>prod-windows-key</option><option>local-linux-key</option><option>local-windows-key</option></select></div></div>
 </div></div>
 <div class="panel card"><div class="panel-head">Network settings</div><div class="panel-body">
-<div class="form-row"><div><label class="form-label">VPC</label><select class="input" name="vpc_id" id="vpcSelect"><option value="">Select a VPC</option>{% for v in vpcs %}<option value="{{v.id}}">{{v.name}} — {{v.cidr}} — {{v.vpc_id}}</option>{% endfor %}</select><div class="muted small">Create a VPC from <a href="/network">VPC networking</a> first if none exists.</div></div>
-<div><label class="form-label">Subnet</label><select class="input" name="subnet_id" id="subnetSelect"><option value="">Select a subnet</option>{% for s in subnets %}<option value="{{s.id}}" data-vpc="{{s.vpc_id}}">{{s.name}} — {{s.cidr}} — {{s.az}}</option>{% endfor %}</select></div></div>
-<div class="form-row"><div><label class="form-label">Security groups</label><select class="input" name="security_group_id" multiple size="4">{% for sg in sgs %}<option value="{{sg.id}}" data-vpc="{{sg.vpc_id}}">{{sg.name}} — {{sg.group_id}} — {{sg.vpc_name}}</option>{% endfor %}</select><div class="muted small">Use Ctrl/Cmd-click to select multiple security groups.</div></div><div><label class="form-label">Private IPv4</label><input class="input" placeholder="Auto-assigned by simulator" disabled></div></div>
-<label><input type="checkbox" name="public_ip"> Auto-assign public IPv4 address</label>
+<div class="form-row"><div><label class="form-label">VPC</label><select class="input" name="vpc_id" id="vpcSelect"><option value="">Default VPC (AWS default)</option>{% for v in vpcs %}<option value="{{v.vpc_id}}" {% if form.get('vpc_id')==v.vpc_id %}selected{% endif %}>{{v.name or 'vpc'}}{{' (default)' if v.is_default else ''}} — {{v.cidr}} — {{v.vpc_id}}</option>{% endfor %}</select><div class="muted small">Leave empty to launch into the default VPC, like the real console. Build your own on the <a href="/network">VPC page</a>.</div></div>
+<div><label class="form-label">Subnet</label><select class="input" name="subnet_id" id="subnetSelect"><option value="">Default subnet</option>{% for s in subnets %}<option value="{{s.subnet_id}}" data-vpc="{{s.vpc_ref}}" {% if form.get('subnet_id')==s.subnet_id %}selected{% endif %}>{{s.name or s.subnet_id}} — {{s.cidr}} — {{s.az}} — {{'public' if s.public else 'private'}}</option>{% endfor %}</select></div></div>
+<div class="form-row"><div><label class="form-label">Security groups</label><select class="input" name="security_group_id" multiple size="4">{% for sg in sgs %}<option value="{{sg.group_id}}" data-vpc="{{sg.vpc_ref}}">{{sg.name}} — {{sg.group_id}} — {{sg.vpc_name}}</option>{% endfor %}</select><div class="muted small">Ctrl/Cmd-click for several. None selected = the VPC's default security group.</div></div><div><label class="form-label">Private IPv4</label><input class="input" placeholder="Auto-assigned by simulator" disabled></div></div>
+<label><input type="checkbox" name="public_ip"> Auto-assign public IPv4 address</label> <span class="muted small">— only useful in a public subnet; costs $0.005/hour.</span>
 </div></div>
 <div class="panel card"><div class="panel-head">Configure storage</div><div class="panel-body">
-<div class="form-row"><div><label class="form-label">Root volume size (GiB)</label><input class="input" type="number" name="root_size" value="30" min="8"></div>
+<div class="form-row"><div><label class="form-label">Root volume size (GiB)</label><input class="input" type="number" name="root_size" placeholder="8 (Linux) / 30 (Windows)" min="8" value="{{form.get('root_size','')}}"></div>
 <div><label class="form-label">Volume type</label><select class="input" name="root_type"><option>gp3</option><option>gp2</option><option>io2</option><option>st1</option><option>sc1</option></select></div></div>
 <label><input type="checkbox" name="encrypted" checked> Encrypt this volume</label>
 </div></div>

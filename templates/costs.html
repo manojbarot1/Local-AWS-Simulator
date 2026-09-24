@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block title %}Cost estimate · Local AWS Simulator{% endblock %}{% block content %}
+<div class="crumb">Landing Zone / Cost estimate</div>
+<div class="pagehead"><div><h1>Cost estimate</h1><p class="lead">What this environment would cost per month on real AWS — approximate {{region}} on-demand list prices, {{hours}} hours/month, excluding data transfer, requests and free tiers. Use it to learn <i>which</i> resources cost money.</p></div><div class="actions"><div class="sideinfo" style="min-width:230px"><div class="label">Estimated monthly total</div><div class="stat" style="margin:6px 0 2px">${{'%.2f'|format(est.total)}}</div><div class="small muted">≈ ${{'%.2f'|format(est.total/30)}} per day</div></div></div></div>
+{% for tip in est.tips %}<div class="notice warn">💡 {{tip}}</div>{% endfor %}
+<div class="grid" style="grid-template-columns:minmax(260px,1fr) minmax(0,2fr)">
+<div class="panel"><div class="panel-head">By service</div><div class="panel-body">
+{% set top = (est.by_service.values()|list|max) if est.by_service else 0 %}
+{% for svc, amt in est.by_service.items() %}<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between" class="small"><b>{{svc}}</b><span>${{'%.2f'|format(amt)}}</span></div><div class="progress" style="height:8px;margin-top:4px"><div style="width:{{ (amt/(top or 1)*100)|round }}%;background:#0972d3"></div></div></div>{% else %}<div class="muted">Nothing billable yet.</div>{% endfor %}
+</div></div>
+<div class="panel"><div class="panel-head">By resource <span class="sub">{{est.lines|length}} line items</span></div><div class="table-wrap"><table class="table"><tr><th>Service</th><th>Resource</th><th>Notes</th><th style="text-align:right">Monthly</th></tr>{% for ln in est.lines %}<tr><td>{{ln.service}}</td><td><b>{{ln.name}}</b><div class="small muted">{{ln.resource}}</div></td><td class="small">{{ln.note}}</td><td style="text-align:right">${{'%.2f'|format(ln.monthly)}}</td></tr>{% else %}<tr><td colspan="4" class="muted">No resources.</td></tr>{% endfor %}</table></div></div>
+</div>
+<div class="notice small"><b>Price basis ({{as_of}}):</b> EC2 on-demand (Linux; Windows adds a licence surcharge per vCPU), EBS per GB-month, NAT gateway $0.052/h, public IPv4 $0.005/h (every public address, attached or idle), load balancers per hour before capacity units, Secrets Manager $0.40/secret. Prices change — always confirm with the AWS Pricing Calculator.</div>
+{% endblock %}
